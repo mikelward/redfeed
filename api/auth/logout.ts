@@ -4,8 +4,8 @@ import {
   REFRESH_COOKIE,
   clearCookie,
   parseCookies,
-} from "../_cookies";
-import { revokeToken } from "../_redditAuth";
+} from "../_cookies.js";
+import { revokeToken } from "../_redditAuth.js";
 
 export default async function handler(
   req: VercelRequest,

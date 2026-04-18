@@ -6,8 +6,8 @@ import {
   parseCookies,
   refreshCookie,
   verifySignedCookie,
-} from "../_cookies";
-import { exchangeCode } from "../_redditAuth";
+} from "../_cookies.js";
+import { exchangeCode } from "../_redditAuth.js";
 
 function getEnv(): {
   redirectUri: string;

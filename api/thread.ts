@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { checkRedditCredentials, getUserToken, redditFetch } from "./_redditAuth";
+import { checkRedditCredentials, getUserToken, redditFetch } from "./_redditAuth.js";
 
 const SUB_RE = /^[A-Za-z0-9_+]+$/;
 const ID_RE = /^[a-z0-9]{1,16}$/;

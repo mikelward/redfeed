@@ -5,7 +5,7 @@ import {
   accessCookie,
   parseCookies,
   refreshCookie,
-} from "./_cookies";
+} from "./_cookies.js";
 
 interface CachedToken {
   value: string;

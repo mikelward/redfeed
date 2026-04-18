@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getUserToken, redditFetch } from "./_redditAuth";
+import { getUserToken, redditFetch } from "./_redditAuth.js";
 
 export default async function handler(
   req: VercelRequest,
