@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   _clearTokenCacheForTests,
+  checkRedditCredentials,
   exchangeCode,
   getAppOnlyToken,
   getUserToken,
@@ -53,6 +54,40 @@ describe("userAgent", () => {
   it("falls back to a descriptive default", () => {
     delete process.env.REDDIT_USER_AGENT;
     expect(userAgent()).toMatch(/redfeed/);
+  });
+});
+
+describe("checkRedditCredentials", () => {
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it("returns null in local dev (no VERCEL env) even without CLIENT_ID", () => {
+    delete process.env.REDDIT_CLIENT_ID;
+    delete process.env.VERCEL;
+    expect(checkRedditCredentials(null)).toBeNull();
+  });
+
+  it("returns null when CLIENT_ID is set", () => {
+    process.env.REDDIT_CLIENT_ID = "cid";
+    process.env.VERCEL = "1";
+    expect(checkRedditCredentials(null)).toBeNull();
+  });
+
+  it("returns null when a user token is supplied (writes/oauth path)", () => {
+    delete process.env.REDDIT_CLIENT_ID;
+    process.env.VERCEL = "1";
+    expect(checkRedditCredentials("user-token")).toBeNull();
+  });
+
+  it("returns a 503 reddit_credentials_missing payload on Vercel without CLIENT_ID or user token", () => {
+    delete process.env.REDDIT_CLIENT_ID;
+    process.env.VERCEL = "1";
+    const result = checkRedditCredentials(null);
+    expect(result).not.toBeNull();
+    expect(result?.status).toBe(503);
+    expect(result?.body.error).toBe("reddit_credentials_missing");
+    expect(result?.body.detail).toMatch(/Reddit/i);
   });
 });
 

@@ -39,6 +39,30 @@ export function clientCredentials(): { id: string; secret: string } {
   };
 }
 
+export interface MissingCredentialsError {
+  status: 503;
+  body: { error: "reddit_credentials_missing"; detail: string };
+}
+
+// Anonymous reads of www.reddit.com work for local dev but are blocked from
+// Vercel's serverless IPs, so in any hosted environment we require a server-side
+// CLIENT_ID. A logged-in user token bypasses the check (writes/oauth.reddit.com).
+export function checkRedditCredentials(
+  userToken: string | null,
+): MissingCredentialsError | null {
+  if (process.env.REDDIT_CLIENT_ID || userToken) return null;
+  if (!process.env.VERCEL) return null;
+  return {
+    status: 503,
+    body: {
+      error: "reddit_credentials_missing",
+      detail:
+        "Reddit API credentials are not configured on the server. " +
+        "Waiting on Reddit to approve and issue an API key.",
+    },
+  };
+}
+
 export async function getAppOnlyToken(
   now: number = Date.now(),
   fetchImpl: typeof fetch = fetch,

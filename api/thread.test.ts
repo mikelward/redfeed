@@ -98,15 +98,15 @@ describe("api/thread", () => {
     expect(res._status).toBe(404);
   });
 
-  it("returns 503 reddit_credentials_missing when upstream fails and no CLIENT_ID is set", async () => {
+  it("returns 503 reddit_credentials_missing upfront on Vercel when CLIENT_ID is unset", async () => {
     delete process.env.REDDIT_CLIENT_ID;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: false, status: 403, text: async () => "" })),
-    );
+    process.env.VERCEL = "1";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     const res = makeRes();
     await handler(makeReq({ sub: "pics", id: "abc" }), res);
     expect(res._status).toBe(503);
     expect(res._body).toMatchObject({ error: "reddit_credentials_missing" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

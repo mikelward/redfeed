@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getUserToken, redditFetch } from "./_redditAuth";
+import { checkRedditCredentials, getUserToken, redditFetch } from "./_redditAuth";
 
 const SUB_RE = /^[A-Za-z0-9_+]+$/;
 const ID_RE = /^[a-z0-9]{1,16}$/;
@@ -30,6 +30,11 @@ export default async function handler(
 
   try {
     const userToken = await getUserToken(req, res);
+    const missing = checkRedditCredentials(userToken);
+    if (missing) {
+      res.status(missing.status).json(missing.body);
+      return;
+    }
     const upstream = await redditFetch({
       path: `/r/${sub}/comments/${id}`,
       query: { sort },
@@ -38,15 +43,6 @@ export default async function handler(
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => "");
       console.error("upstream not ok", upstream.status, detail.slice(0, 500));
-      if (!process.env.REDDIT_CLIENT_ID && !userToken) {
-        res.status(503).json({
-          error: "reddit_credentials_missing",
-          detail:
-            "Reddit API credentials are not configured on the server. " +
-            "Waiting on Reddit to approve and issue an API key.",
-        });
-        return;
-      }
       res.status(upstream.status).json({
         error: `reddit ${upstream.status}`,
         detail: detail.slice(0, 500),
