@@ -72,6 +72,36 @@ describe("fetchFeed", () => {
     );
     await expect(fetchFeed("popular")).rejects.not.toThrow(/503/);
   });
+
+  it("maps 404 to 'subreddit doesn't exist'", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    );
+    await expect(fetchFeed("nopesub")).rejects.toThrow(
+      /Subreddit r\/nopesub doesn't exist\./,
+    );
+  });
+
+  it("maps 403 to a private/quarantined/banned message naming the sub", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}) })),
+    );
+    await expect(fetchFeed("locked")).rejects.toThrow(
+      /r\/locked is private, quarantined, or banned/,
+    );
+  });
+
+  it("maps 429 to a rate-limit message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })),
+    );
+    await expect(fetchFeed("popular")).rejects.toThrow(
+      /rate-limiting us right now/,
+    );
+  });
 });
 
 describe("fetchThread", () => {
@@ -154,5 +184,15 @@ describe("fetchThread", () => {
     expect(calls[0][0]).toContain("/api/thread?");
     expect(calls[0][0]).toContain("sub=pics");
     expect(calls[0][0]).toContain("id=abc");
+  });
+
+  it("maps 404 to a 'post may have been deleted' message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    );
+    await expect(fetchThread("pics", "abc")).rejects.toThrow(
+      /post in r\/pics doesn't exist.*deleted/,
+    );
   });
 });
