@@ -1,12 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { redditFetch } from "./_redditAuth";
 
 const VALID_SORTS = new Set(["hot", "new", "top", "rising", "controversial"]);
 const VALID_T = new Set(["hour", "day", "week", "month", "year", "all"]);
 const SUB_RE = /^[A-Za-z0-9_+]+$/;
-
-function userAgent(): string {
-  return process.env.REDDIT_USER_AGENT ?? "web:app.redfeed:v0.1.0 (by /u/redfeed)";
-}
 
 export default async function handler(
   req: VercelRequest,
@@ -34,20 +31,18 @@ export default async function handler(
     return;
   }
 
-  const url = new URL(`https://www.reddit.com/r/${sub}/${sort}.json`);
-  url.searchParams.set("limit", String(limit));
-  if (after) url.searchParams.set("after", after);
-  if (t) url.searchParams.set("t", t);
-
   try {
-    const upstream = await fetch(url.toString(), {
-      headers: {
-        "User-Agent": userAgent(),
-        Accept: "application/json",
-      },
+    const upstream = await redditFetch({
+      path: `/r/${sub}/${sort}`,
+      query: { limit: String(limit), after, t },
     });
     if (!upstream.ok) {
-      res.status(upstream.status).json({ error: `reddit ${upstream.status}` });
+      const detail = await upstream.text().catch(() => "");
+      console.error("upstream not ok", upstream.status, detail.slice(0, 500));
+      res.status(upstream.status).json({
+        error: `reddit ${upstream.status}`,
+        detail: detail.slice(0, 500),
+      });
       return;
     }
     const body = await upstream.text();
@@ -58,6 +53,7 @@ export default async function handler(
     );
     res.status(200).send(body);
   } catch (err) {
+    console.error("feed handler threw", err);
     res.status(502).json({
       error: err instanceof Error ? err.message : "upstream error",
     });

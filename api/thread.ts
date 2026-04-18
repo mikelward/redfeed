@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { redditFetch } from "./_redditAuth";
 
 const SUB_RE = /^[A-Za-z0-9_+]+$/;
 const ID_RE = /^[a-z0-9]{1,16}$/;
-
-function userAgent(): string {
-  return process.env.REDDIT_USER_AGENT ?? "web:app.redfeed:v0.1.0 (by /u/redfeed)";
-}
+const ALLOWED_SORTS = new Set([
+  "confidence", "top", "new", "controversial", "old", "qa",
+]);
 
 export default async function handler(
   req: VercelRequest,
@@ -14,9 +14,6 @@ export default async function handler(
   const sub = String(req.query.sub ?? "").trim();
   const id = String(req.query.id ?? "").trim();
   const sort = String(req.query.sort ?? "confidence").trim();
-  const ALLOWED_SORTS = new Set([
-    "confidence", "top", "new", "controversial", "old", "qa",
-  ]);
 
   if (!sub || !SUB_RE.test(sub)) {
     res.status(400).json({ error: "invalid sub" });
@@ -31,19 +28,18 @@ export default async function handler(
     return;
   }
 
-  const url = new URL(`https://www.reddit.com/r/${sub}/comments/${id}.json`);
-  url.searchParams.set("sort", sort);
-  url.searchParams.set("raw_json", "1");
-
   try {
-    const upstream = await fetch(url.toString(), {
-      headers: {
-        "User-Agent": userAgent(),
-        Accept: "application/json",
-      },
+    const upstream = await redditFetch({
+      path: `/r/${sub}/comments/${id}`,
+      query: { sort },
     });
     if (!upstream.ok) {
-      res.status(upstream.status).json({ error: `reddit ${upstream.status}` });
+      const detail = await upstream.text().catch(() => "");
+      console.error("upstream not ok", upstream.status, detail.slice(0, 500));
+      res.status(upstream.status).json({
+        error: `reddit ${upstream.status}`,
+        detail: detail.slice(0, 500),
+      });
       return;
     }
     const body = await upstream.text();
@@ -54,6 +50,7 @@ export default async function handler(
     );
     res.status(200).send(body);
   } catch (err) {
+    console.error("thread handler threw", err);
     res.status(502).json({
       error: err instanceof Error ? err.message : "upstream error",
     });
