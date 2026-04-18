@@ -1,12 +1,13 @@
 {
-  "name": "redfeed-scaffold",
+  "name": "redfeed",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run"
   },
   "dependencies": {
     "next": "16.2.4",
@@ -15,14 +16,14 @@
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
+    "@testing-library/react": "^16.3.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
-    "jsdom": "^29.0.2",
+    "jsdom": "^27.1.0",
     "typescript": "^5",
-    "vitest": "^4.1.4"
+    "vitest": "^4.0.8"
   }
 }
