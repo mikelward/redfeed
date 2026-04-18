@@ -51,6 +51,26 @@ header.rf-header {
   gap: 12px;
 }
 
+header.rf-header .rf-back {
+  font-size: 24px;
+  line-height: 1;
+  color: var(--rf-text);
+  text-decoration: none;
+  min-width: 40px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+header.rf-header .rf-back:active,
+header.rf-header .rf-back:focus-visible {
+  background: var(--rf-bg-alt);
+  outline: 2px solid var(--rf-accent);
+  outline-offset: -2px;
+}
+
 header.rf-header .rf-brand {
   font-weight: 700;
   color: var(--rf-accent);
