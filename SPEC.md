@@ -11,7 +11,7 @@
 Reddit's own mobile web experience does three things that hurt casual reading on a phone:
 
 1. Dense rows with many small tappable elements (vote arrows, save, share, author, subreddit, flair, comments, "…" menu) that invite mis-taps.
-2. Interstitial "open in app" prompts, login walls, and promoted content that interrupt scrolling.
+2. Interstitial "open in app" prompts and login walls that interrupt scrolling on public content.
 3. No good "I've already read this" affordance, so returning to a feed means re-scanning the same posts.
 
 Redfeed fixes all three by keeping **few, large, well-spaced tap targets per row**, rendering a clean feed with no app-install nags, and treating the feed like an **RSS reader**: posts you've scrolled past are auto-dismissed and filtered out of the feed, so your eye goes straight to what's new.

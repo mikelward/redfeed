@@ -115,7 +115,7 @@ describe("FeedPage", () => {
     expect(screen.queryByText("Post B")).not.toBeInTheDocument();
   });
 
-  it('"Restore all" empties the dismissed store and re-renders posts', async () => {
+  it("Restore via side nav empties the dismissed store and re-renders posts", async () => {
     const user = userEvent.setup();
     localStorage.setItem(
       DISMISSED_KEY,
@@ -124,8 +124,9 @@ describe("FeedPage", () => {
     renderFeed();
     await waitFor(() => screen.getByText("Post B"));
     expect(screen.queryByText("Post A")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("open menu"));
     await user.click(screen.getByLabelText("restore all dismissed posts"));
-    expect(screen.getByText("Post A")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Post A")).toBeInTheDocument());
     expect(localStorage.getItem(DISMISSED_KEY)).toBe("{}");
   });
 

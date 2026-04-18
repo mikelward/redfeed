@@ -4,8 +4,8 @@ import { fetchFeed, type RedditPost } from "../lib/reddit";
 import PostRow from "../components/PostRow";
 import { useDismissedStories } from "../lib/useDismissedStories";
 import { useAutoDismissOnScroll } from "../lib/useAutoDismissOnScroll";
-import { useMe } from "../lib/useMe";
-import AuthMenu from "../components/AuthMenu";
+import HamburgerButton from "../components/HamburgerButton";
+import SideNav from "../components/SideNav";
 
 const UNDO_WINDOW_MS = 6000;
 
@@ -27,7 +27,7 @@ export default function FeedPage() {
   const [undo, setUndo] = useState<UndoState | null>(null);
 
   const dismissedStore = useDismissedStories();
-  const meState = useMe();
+  const [navOpen, setNavOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [topOffset, setTopOffset] = useState(0);
@@ -142,19 +142,11 @@ export default function FeedPage() {
   return (
     <>
       <header ref={headerRef} className="rf-header">
+        <HamburgerButton onClick={() => setNavOpen(true)} />
         <span className="rf-brand">Redfeed</span>
         <span className="rf-feed-name">
           r/{sub} · {sort}
         </span>
-        <div className="rf-chrome">
-          <button
-            onClick={() => dismissedStore.clearAll()}
-            aria-label="restore all dismissed posts"
-          >
-            Restore all
-          </button>
-          <AuthMenu state={meState} />
-        </div>
       </header>
       <main>
         {loading && <div className="rf-loading">Loading…</div>}
@@ -166,7 +158,7 @@ export default function FeedPage() {
         )}
         {!loading && !error && visiblePosts.length === 0 && posts.length > 0 && (
           <div className="rf-loading">
-            All posts dismissed. Tap Restore all to bring them back.
+            All posts dismissed. Open the menu and tap Restore dismissed posts to bring them back.
           </div>
         )}
         {!loading && !error && posts.length === 0 && (
@@ -212,6 +204,7 @@ export default function FeedPage() {
           </button>
         </div>
       )}
+      <SideNav open={navOpen} onClose={() => setNavOpen(false)} />
     </>
   );
 }

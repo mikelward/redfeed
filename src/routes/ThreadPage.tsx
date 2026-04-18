@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { fetchThread, type RedditPost, type RedditCommentOrMore } from "../lib/reddit";
 import PostHeader from "../components/PostHeader";
 import CommentTree from "../components/CommentTree";
+import HamburgerButton from "../components/HamburgerButton";
+import SideNav from "../components/SideNav";
 
 interface ThreadItem {
   kind: "t1" | "more";
@@ -16,6 +18,7 @@ export default function ThreadPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     if (!sub || !id) return;
@@ -40,6 +43,7 @@ export default function ThreadPage() {
   return (
     <>
       <header className="rf-header">
+        <HamburgerButton onClick={() => setNavOpen(true)} />
         <Link className="rf-back" to={`/r/${sub}`} aria-label="back to feed">
           ‹
         </Link>
@@ -57,6 +61,7 @@ export default function ThreadPage() {
         {post && <PostHeader post={post} />}
         {post && <CommentTree items={comments} />}
       </main>
+      <SideNav open={navOpen} onClose={() => setNavOpen(false)} />
     </>
   );
 }
