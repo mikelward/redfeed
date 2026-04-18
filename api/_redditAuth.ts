@@ -1,3 +1,12 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import {
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
+  accessCookie,
+  parseCookies,
+  refreshCookie,
+} from "./_cookies";
+
 interface CachedToken {
   value: string;
   expiresAt: number;
@@ -16,11 +25,18 @@ export function userAgent(): string {
   );
 }
 
-function basicAuth(user: string, pass: string): string {
+export function basicAuth(user: string, pass: string): string {
   if (typeof Buffer !== "undefined") {
     return Buffer.from(`${user}:${pass}`).toString("base64");
   }
   return btoa(`${user}:${pass}`);
+}
+
+export function clientCredentials(): { id: string; secret: string } {
+  return {
+    id: process.env.REDDIT_CLIENT_ID ?? "",
+    secret: process.env.REDDIT_CLIENT_SECRET ?? "",
+  };
 }
 
 export async function getAppOnlyToken(
@@ -71,18 +87,123 @@ export async function getAppOnlyToken(
   return cache.value;
 }
 
+export interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  scope?: string;
+  token_type?: string;
+}
+
+export async function exchangeCode(
+  code: string,
+  redirectUri: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<TokenResponse | null> {
+  const { id, secret } = clientCredentials();
+  if (!id) return null;
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri,
+  });
+  const res = await fetchImpl("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basicAuth(id, secret)}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": userAgent(),
+    },
+    body: body.toString(),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as TokenResponse;
+  return data.access_token ? data : null;
+}
+
+export async function refreshUserToken(
+  refresh: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<TokenResponse | null> {
+  const { id, secret } = clientCredentials();
+  if (!id) return null;
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refresh,
+  });
+  const res = await fetchImpl("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basicAuth(id, secret)}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": userAgent(),
+    },
+    body: body.toString(),
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as TokenResponse;
+  return data.access_token ? data : null;
+}
+
+export async function revokeToken(
+  token: string,
+  hint: "access_token" | "refresh_token" = "refresh_token",
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const { id, secret } = clientCredentials();
+  if (!id) return;
+  const body = new URLSearchParams({
+    token,
+    token_type_hint: hint,
+  });
+  await fetchImpl("https://www.reddit.com/api/v1/revoke_token", {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${basicAuth(id, secret)}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": userAgent(),
+    },
+    body: body.toString(),
+  });
+}
+
+export async function getUserToken(
+  req: VercelRequest,
+  res: VercelResponse | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string | null> {
+  const cookies = parseCookies(req.headers?.cookie);
+  const access = cookies[ACCESS_COOKIE];
+  if (access) return access;
+  const refresh = cookies[REFRESH_COOKIE];
+  if (!refresh) return null;
+  const refreshed = await refreshUserToken(refresh, fetchImpl);
+  if (!refreshed) return null;
+  if (res) {
+    const cookies = [accessCookie(refreshed.access_token, refreshed.expires_in)];
+    if (refreshed.refresh_token) {
+      cookies.push(refreshCookie(refreshed.refresh_token));
+    }
+    res.setHeader("Set-Cookie", cookies);
+  }
+  return refreshed.access_token;
+}
+
 export interface RedditFetchOptions {
   path: string;
   query?: Record<string, string | undefined>;
   fetchImpl?: typeof fetch;
+  userToken?: string | null;
 }
 
 export async function redditFetch({
   path,
   query = {},
   fetchImpl = fetch,
+  userToken,
 }: RedditFetchOptions): Promise<Response> {
-  const token = await getAppOnlyToken(Date.now(), fetchImpl);
+  const token =
+    userToken ?? (await getAppOnlyToken(Date.now(), fetchImpl));
 
   const base = token ? "https://oauth.reddit.com" : "https://www.reddit.com";
   const suffix = token ? "" : ".json";

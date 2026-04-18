@@ -41,23 +41,43 @@ const listing = (posts: FixturePost[], after: string | null = null) => ({
   },
 });
 
-function jsonResponse(body: unknown) {
-  return { ok: true, status: 200, json: async () => body } as Response;
+function jsonResponse(body: unknown, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  } as Response;
+}
+
+const meUnauthed = () => jsonResponse({ error: "not logged in" }, 401);
+
+function stubFeedSequence(
+  responses: Array<Response | (() => Promise<Response>) | (() => Response)>,
+) {
+  const queue = [...responses];
+  const next = async () => {
+    const r = queue.shift();
+    if (!r) throw new Error("no more queued feed responses");
+    return typeof r === "function" ? r() : r;
+  };
+  const fetchMock = vi.fn(async (url: string) => {
+    if (url.startsWith("/api/me")) return meUnauthed();
+    return next();
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 function stubSinglePage() {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () =>
-      jsonResponse(
-        listing([
-          { id: "a", title: "Post A" },
-          { id: "b", title: "Post B" },
-          { id: "c", title: "Post C" },
-        ]),
-      ),
+  return stubFeedSequence([
+    jsonResponse(
+      listing([
+        { id: "a", title: "Post A" },
+        { id: "b", title: "Post B" },
+        { id: "c", title: "Post C" },
+      ]),
     ),
-  );
+  ]);
 }
 
 function renderFeed() {
@@ -131,28 +151,23 @@ describe("FeedPage pagination", () => {
 
   it("appends a second page when Load more is tapped, then ends", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse(
-          listing(
-            [
-              { id: "a", title: "Post A" },
-              { id: "b", title: "Post B" },
-            ],
-            "t3_b",
-          ),
+    const fetchMock = stubFeedSequence([
+      jsonResponse(
+        listing(
+          [
+            { id: "a", title: "Post A" },
+            { id: "b", title: "Post B" },
+          ],
+          "t3_b",
         ),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(
-          listing([
-            { id: "c", title: "Post C" },
-            { id: "d", title: "Post D" },
-          ]),
-        ),
-      );
-    vi.stubGlobal("fetch", fetchMock);
+      ),
+      jsonResponse(
+        listing([
+          { id: "c", title: "Post C" },
+          { id: "d", title: "Post D" },
+        ]),
+      ),
+    ]);
 
     renderFeed();
     await waitFor(() => screen.getByText("Post A"));
@@ -164,29 +179,23 @@ describe("FeedPage pagination", () => {
     expect(screen.getByText("Post D")).toBeInTheDocument();
     expect(screen.getByText("End of feed.")).toBeInTheDocument();
 
-    const url2 = String(fetchMock.mock.calls[1][0]);
-    expect(url2).toContain("after=t3_b");
+    const feedCalls = fetchMock.mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.startsWith("/api/feed"));
+    expect(feedCalls[1]).toContain("after=t3_b");
   });
 
   it("de-dupes posts that show up in two pages", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse(
-          listing([{ id: "a", title: "Post A" }], "t3_a"),
-        ),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(
-          listing([
-            { id: "a", title: "Post A" },
-            { id: "b", title: "Post B" },
-          ]),
-        ),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
+    stubFeedSequence([
+      jsonResponse(listing([{ id: "a", title: "Post A" }], "t3_a")),
+      jsonResponse(
+        listing([
+          { id: "a", title: "Post A" },
+          { id: "b", title: "Post B" },
+        ]),
+      ),
+    ]);
     renderFeed();
     await waitFor(() => screen.getByText("Post A"));
     await user.click(screen.getByLabelText("load more posts"));
@@ -196,16 +205,10 @@ describe("FeedPage pagination", () => {
 
   it("surfaces a Retry control when load-more fails", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse(
-          listing([{ id: "a", title: "Post A" }], "t3_a"),
-        ),
-      )
-      .mockRejectedValueOnce(new Error("boom"));
-    vi.stubGlobal("fetch", fetchMock);
-
+    stubFeedSequence([
+      jsonResponse(listing([{ id: "a", title: "Post A" }], "t3_a")),
+      () => Promise.reject(new Error("boom")),
+    ]);
     renderFeed();
     await waitFor(() => screen.getByText("Post A"));
     await user.click(screen.getByLabelText("load more posts"));
