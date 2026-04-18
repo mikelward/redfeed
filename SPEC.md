@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Redfeed** is a mobile-friendly, responsive web **reader for [Reddit](https://www.reddit.com)**, built with React + TypeScript and deployed on Vercel. The goal is to deliver a clean, fast, thumb-friendly reading experience for Reddit feeds, with an **RSS-reader-style scroll-to-hide** interaction: once a post has scrolled past the top of the viewport it's marked "seen" and visually de-emphasized the next time you open the feed.
+**Redfeed** is a mobile-friendly, responsive web **reader for [Reddit](https://www.reddit.com)**, built with React + TypeScript and deployed on Vercel. The goal is to deliver a clean, fast, thumb-friendly reading experience for Reddit feeds, with an **RSS-reader-style auto-dismiss** interaction: once a post has scrolled completely out of the top of the viewport it's dismissed and filtered out of the feed (with an Undo toast and a 7-day TTL), so returning readers see what's new.
 
 "Reddit", the Reddit logo, and the alien mascot are trademarks of Reddit, Inc.; Redfeed is an unofficial third-party client and is not affiliated with or endorsed by Reddit. The app is always described as a *reader for Reddit*, never as "Reddit" itself, and does not use Reddit's logo as its own.
 
@@ -14,7 +14,7 @@ Reddit's own mobile web experience does three things that hurt casual reading on
 2. Interstitial "open in app" prompts, login walls, and promoted content that interrupt scrolling.
 3. No good "I've already read this" affordance, so returning to a feed means re-scanning the same posts.
 
-Redfeed fixes all three by keeping **few, large, well-spaced tap targets per row**, rendering a clean feed with no app-install nags, and treating the feed like an **RSS reader**: posts you've already scrolled past get dimmed so your eye goes straight to what's new.
+Redfeed fixes all three by keeping **few, large, well-spaced tap targets per row**, rendering a clean feed with no app-install nags, and treating the feed like an **RSS reader**: posts you've scrolled past are auto-dismissed and filtered out of the feed, so your eye goes straight to what's new.
 
 We achieve that by:
 
@@ -22,7 +22,7 @@ We achieve that by:
 2. **Large, well-spaced hit areas.** Minimum 48×48px per tappable, ≥8px dead space between adjacent targets.
 3. **Metadata is display-only.** Score, age, subreddit, author are plain text; only the explicit upvote arrow, main content, and "N comments" button are tappable.
 4. **The comments button is a real button**, padded and outlined, not an inline text link — so it's visually obvious and easy to aim for.
-5. **Seen posts dim themselves.** Scroll past a row, it's "seen"; on the next view it's faded and/or collapsed, so returning users see what's new at a glance.
+5. **Dismissed posts are filtered out.** Scroll past a row so it leaves the top of the viewport, and it's dismissed and removed from the list. An Undo toast appears for a few seconds so accidental dismissals are reversible, and there's a "Restore all" control in feed chrome.
 
 ## Goals
 
@@ -31,7 +31,7 @@ We achieve that by:
 - Clean neutral look with Reddit-orange (`#ff4500`) accents, but **fewer, larger, better-spaced** tap targets than Reddit's own mobile site.
 - Read public subreddit feeds (`/r/:sub`) and the Popular / All feeds.
 - Native-feeling **image post rendering** — image posts show the image inline, not a link.
-- RSS-style **seen/unseen** state persisted in the browser so returning readers see what's new.
+- RSS-style **auto-dismiss** persisted in the browser so returning readers see only what's new, with Undo and Restore.
 - View a post's comment thread (read-only for MVP).
 - Optional: log in via Reddit OAuth and vote / comment from mobile.
 
@@ -43,7 +43,7 @@ We achieve that by:
 - Push notifications.
 - Video playback beyond a static preview + play-badge linking out (MP4/HLS players are a stretch).
 - Native app shell (PWA installability is a nice-to-have, not required).
-- Syncing seen state across devices (local-only for MVP).
+- Syncing dismissed state across devices (local-only for MVP).
 
 ## Users
 
@@ -52,7 +52,7 @@ We achieve that by:
 
 ## Feature List
 
-### MVP (read-only + seen-tracking)
+### MVP (read-only + auto-dismiss)
 
 1. **Feeds**
    - `/` redirects to `/r/popular`.
@@ -78,13 +78,14 @@ We achieve that by:
    - Nested comments with collapse/expand. "Load more" for `more` placeholders.
    - Deep-linkable: `/r/:sub/comments/:id`.
 
-4. **Seen tracking (the RSS-style bit)**
-   - As a post row scrolls off the top of the viewport, it's marked **seen** in `localStorage`, keyed by post fullname (`t3_xxxxxx`).
-   - On the next feed render, seen posts are rendered at reduced opacity (~40%) with a thinner border.
-   - A settings toggle: *Hide seen posts entirely* vs. *Dim seen posts* (default: dim).
-   - A "Mark all as seen" button and a "Clear seen history" button in feed chrome.
-   - Seen state has a TTL (30 days) to keep `localStorage` bounded.
-   - MVP does **not** call Reddit's `/api/hide` endpoint — seen state is purely client-side. (Stretch: sync to Reddit's hide list for logged-in users.)
+4. **Auto-dismiss (the RSS-style bit)**
+   - A row must first be seen intersecting the viewport (gates against below-the-fold rows being dismissed on mount). Once it has been seen, the moment its bottom edge passes above the sticky header, it is **dismissed** and filtered out of the feed. Scrolling past the bottom of the viewport does **not** dismiss — only scrolling off the top does.
+   - Implementation: a single `IntersectionObserver` with `rootMargin: -<headerHeight>px 0px 0px 0px`. On each entry we track whether it has ever been intersecting; when it leaves and `entry.boundingClientRect.bottom <= headerHeight`, we call `dismiss(name)`.
+   - Persistence: `localStorage` key `rf.dismissed.v1`, value `{ [fullname]: timestamp }`. 7-day TTL; pruned on every load. Keyed by Reddit fullname (`t3_xxxxxx`).
+   - Display: dismissed posts are **hard-filtered** out of the rendered list. There is **no dim mode**, no separator, no collapsed run — they are simply gone from the feed.
+   - Undo: after an auto-dismiss, a toast appears at the bottom of the screen with the post title and an "Undo" button, visible for ~6 seconds. Tapping Undo removes the entry from the dismissed store and the row re-appears in place.
+   - Chrome: a single "Restore all" button in the feed header clears the dismissed store. (The dedicated Dismissed-Posts page listed under *Stretch* is the long-form equivalent.)
+   - MVP does **not** call Reddit's `/api/hide` endpoint — dismissal is purely client-side. (Stretch: sync dismissals up to Reddit's hide list for logged-in users.)
 
 5. **Subreddit picker**
    - Simple input on the home screen: "Go to r/…".
@@ -102,7 +103,8 @@ We achieve that by:
 8. **Voting** — up/down/unvote via `/api/vote` proxy.
 9. **Commenting** — post top-level and reply comments via `/api/comment` proxy. MVP threads are read-only.
 10. **Save / unsave** — `/api/save`, for the logged-in user's saved list.
-11. **Hide sync** — send client-side "seen" hides up to Reddit's `/api/hide` on login (opt-in).
+11. **Hide sync** — send client-side dismissals up to Reddit's `/api/hide` on login (opt-in).
+11a. **Dismissed-posts page** (`/dismissed`) — list recently dismissed items with a per-row Undo, plus "Clear all".
 12. **Inline video player** — HLS via `hls.js` for `v.redd.it`.
 13. **PWA install** — manifest + service worker for offline shell.
 
@@ -194,8 +196,8 @@ Commenting is a **stretch** feature; MVP threads are read-only.
 - **Read path (anonymous, MVP)**: client calls `https://www.reddit.com/r/.../.json` directly when CORS permits; falls back to `/api/r/*` proxy if Reddit blocks the origin. Preference: proxy everything through our own `/api/feed` to (a) set the required `User-Agent` and (b) keep a single cache layer.
 - **Read path (logged-in)**: client calls `/api/feed?...`, which uses the user's OAuth token against `oauth.reddit.com` so subscriber-only or NSFW-gated content works.
 - **Write path**: client calls `/api/vote`, `/api/comment`, `/api/save`. Serverless handlers attach the server-held OAuth token.
-- **Seen store**: `localStorage` key `rf.seen.v1` = `{ [fullname]: timestamp }`. Pruned on load to drop entries older than 30 days.
-- **No DB** — auth lives in cookies, seen state in `localStorage`, everything else in TanStack Query's cache.
+- **Dismissed store**: `localStorage` key `rf.dismissed.v1` = `{ [fullname]: timestamp }`. Pruned on load to drop entries older than 7 days. Exposed via `useDismissedStories()`; the IntersectionObserver wrapper lives in `useAutoDismissOnScroll()`.
+- **No DB** — auth lives in cookies, dismissed state in `localStorage`, everything else in TanStack Query's cache.
 
 ## Post row layout
 
@@ -264,11 +266,9 @@ What is deliberately **not** rendered:
 - "…" menus.
 - Awards.
 
-### Seen state visuals
+### Dismissed state visuals
 
-- **Unseen**: full opacity, normal border.
-- **Seen (dim mode, default)**: 40% opacity on the title and image, metadata unchanged, 1px border becomes 0.5px subtle.
-- **Seen (hide mode)**: row is not rendered; a single collapsed "N seen posts" separator appears where a run of seen posts used to be, tappable to expand.
+- Dismissed rows are removed from the list entirely — no dim, no separator, no collapsed run. The auto-dismiss Undo toast (see *Auto-dismiss* above) is the only post-dismissal UI in the feed.
 
 ### Spacing / sizing
 
@@ -296,7 +296,6 @@ All preview URLs come back HTML-entity-encoded (`&amp;` instead of `&`); we deco
 - Primary accent: `#ff4500` (Reddit orange) for the upvote arrow (active) and the focused comments button outline.
 - Background: `#ffffff` page, `#f7f7f8` between rows (subtle 1px rule in `#e5e5ea`).
 - Text: `#1a1a1b` primary, `#7c7c83` metadata.
-- Seen opacity: 0.4 on title + image, 1.0 on metadata.
 - Font stack: system UI (`-apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif`).
 - **Tap targets: ≥48×48px, ≥8px spacing between any two distinct targets.**
 - **At most 3 tappable zones per post row** (vote + content + comments); fewer when logged out (2) or for self-posts with no external URL (same 2).
@@ -315,7 +314,7 @@ All preview URLs come back HTML-entity-encoded (`&amp;` instead of `&`); we deco
 | `/r/:sub/comments/:id/:slug` | canonical Reddit permalink (same view) |
 | `/u/:name` | user profile (stretch) |
 | `/login` | starts OAuth (stretch) |
-| `/settings` | seen-mode toggle, clear seen history, logout |
+| `/settings` | restore all dismissed, logout |
 
 ## Accessibility
 
@@ -346,7 +345,7 @@ All preview URLs come back HTML-entity-encoded (`&amp;` instead of `&`); we deco
 - **Unit:** Vitest + React Testing Library for components, pure functions (time formatting, media URL normalizer, domain extractor, seen-store).
 - **Integration:** MSW to mock `reddit.com` and `oauth.reddit.com` responses; test the feed and thread views end-to-end.
 - **Serverless:** Vitest with direct handler calls; mock `fetch` for outbound Reddit calls. Cover the OAuth code-exchange, refresh, vote, and comment handlers.
-- **Seen-store tests:** scroll simulation marks items seen; TTL pruning drops old entries; toggle between dim and hide modes re-renders correctly.
+- **Dismissed-store tests:** scroll simulation dismisses items only after they've been intersecting AND then scrolled past the top; TTL pruning drops old entries; Undo toast restores the row.
 - **Smoke:** one Playwright test that loads `/r/popular` against a preview deploy (stretch).
 
 ## Deployment
@@ -366,7 +365,7 @@ All preview URLs come back HTML-entity-encoded (`&amp;` instead of `&`); we deco
 - **Rate limiting.** Reddit's OAuth API limits to 100 QPM per OAuth client. Anonymous `.json` endpoints have looser but unpublished limits. We add a small in-memory LRU on the serverless side so rapid-fire feed reloads don't burn the budget.
 - **NSFW handling.** MVP blurs NSFW thumbnails and requires a tap to reveal; we do not gate the app behind an age check. Fully NSFW-only subs remain visible to logged-in 18+ users via Reddit's own flag.
 - **Quarantined subs.** Reddit requires an explicit opt-in before serving content from quarantined subs; we'll surface Reddit's own message and not attempt to bypass it.
-- **Seen sync.** Do we sync the local seen list up to Reddit's server-side `/api/hide` for logged-in users? *Decision: opt-in in Settings, stretch feature.*
+- **Dismiss sync.** Do we sync the local dismissed list up to Reddit's server-side `/api/hide` for logged-in users? *Decision: opt-in in Settings, stretch feature.*
 - **Trademark / naming.** `redfeed.app` is the working domain; confirm availability before launch.
 
 ---

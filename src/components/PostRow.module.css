@@ -106,7 +106,3 @@
   outline-offset: -2px;
 }
 
-.seen .title,
-.seen .media {
-  opacity: var(--rf-seen-opacity);
-}
