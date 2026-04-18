@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import HamburgerButton from "../components/HamburgerButton";
 import SideNav from "../components/SideNav";
 import styles from "./AboutPage.module.css";
@@ -18,7 +19,9 @@ export default function AboutPage() {
     <>
       <header className="rf-header">
         <HamburgerButton onClick={() => setNavOpen(true)} />
-        <span className="rf-brand">Redfeed</span>
+        <Link className="rf-brand" to="/r/popular" aria-label="Redfeed home">
+          Redfeed
+        </Link>
         <span className="rf-feed-name">About</span>
       </header>
       <main>
@@ -152,8 +155,8 @@ export default function AboutPage() {
 
           <p className={styles.footer}>
             If you are viewing this through Redfeed, you can dismiss this
-            page by tapping the menu icon and choosing Home, or by using
-            your browser&apos;s back button.
+            page by tapping the menu icon and choosing Home, or by{" "}
+            <Link to="/r/popular">returning to the feed</Link>.
           </p>
         </article>
       </main>

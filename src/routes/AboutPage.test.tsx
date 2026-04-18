@@ -49,4 +49,20 @@ describe("AboutPage", () => {
     await user.click(screen.getByLabelText("open menu"));
     expect(screen.getByRole("dialog", { name: "site menu" })).toBeInTheDocument();
   });
+
+  it("brand in the header links to home", () => {
+    renderAbout();
+    expect(screen.getByRole("link", { name: "Redfeed home" })).toHaveAttribute(
+      "href",
+      "/r/popular",
+    );
+  });
+
+  it("footer offers an in-app link back to the feed instead of the browser back button", () => {
+    renderAbout();
+    expect(screen.queryByText(/browser.{0,5}back button/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /returning to the feed/i }),
+    ).toHaveAttribute("href", "/r/popular");
+  });
 });

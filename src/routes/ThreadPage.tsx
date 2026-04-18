@@ -47,7 +47,9 @@ export default function ThreadPage() {
         <Link className="rf-back" to={`/r/${sub}`} aria-label="back to feed">
           ‹
         </Link>
-        <span className="rf-brand">Redfeed</span>
+        <Link className="rf-brand" to="/r/popular" aria-label="Redfeed home">
+          Redfeed
+        </Link>
         <span className="rf-feed-name">r/{sub}</span>
       </header>
       <main>
