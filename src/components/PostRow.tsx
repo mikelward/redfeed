@@ -15,7 +15,6 @@ export default function PostRow({ post, now, rowRef }: Props) {
   const threadPath = post.permalink;
   const isExternalLink = media.kind === "link" && !!post.url;
   const mainHref = isExternalLink ? post.url : threadPath;
-  const mainIsExternal = isExternalLink;
 
   const badge =
     media.kind === "gallery" && media.count
@@ -28,30 +27,27 @@ export default function PostRow({ post, now, rowRef }: Props) {
     (media.kind === "image" || media.kind === "gallery" || media.kind === "video") &&
     media.src;
 
-  const mainContent = (
+  const titleNode = <span className={styles.title}>{post.title}</span>;
+
+  const imageNode = hasImage ? (
+    <span className={styles.media}>
+      <img
+        src={media.src}
+        srcSet={media.srcset}
+        sizes="(max-width: 720px) 100vw, 720px"
+        width={media.width}
+        height={media.height}
+        loading="lazy"
+        alt={post.title}
+      />
+      {badge && <span className={styles.badge}>{badge}</span>}
+    </span>
+  ) : null;
+
+  const linkBody = (
     <>
-      <div className={styles.title}>{post.title}</div>
-      <div className={styles.meta}>
-        <span>{post.subreddit_name_prefixed}</span>
-        <span>u/{post.author}</span>
-        <span>{formatRelativeTime(post.created_utc, now)}</span>
-        <span>{post.score.toLocaleString()} points</span>
-        {media.kind === "link" && media.domain && <span>{media.domain}</span>}
-      </div>
-      {hasImage && (
-        <div className={styles.media}>
-          <img
-            src={media.src}
-            srcSet={media.srcset}
-            sizes="(max-width: 720px) 100vw, 720px"
-            width={media.width}
-            height={media.height}
-            loading="lazy"
-            alt={post.title}
-          />
-          {badge && <span className={styles.badge}>{badge}</span>}
-        </div>
-      )}
+      {titleNode}
+      {imageNode}
     </>
   );
 
@@ -61,20 +57,27 @@ export default function PostRow({ post, now, rowRef }: Props) {
       data-fullname={post.name}
       className={styles.row}
     >
-      {mainIsExternal ? (
+      {isExternalLink ? (
         <a
           className={styles.main}
           href={mainHref}
           target="_blank"
           rel="noopener noreferrer"
         >
-          {mainContent}
+          {linkBody}
         </a>
       ) : (
         <Link className={styles.main} to={mainHref}>
-          {mainContent}
+          {linkBody}
         </Link>
       )}
+      <div className={styles.meta}>
+        <span>{post.subreddit_name_prefixed}</span>
+        <span>u/{post.author}</span>
+        <span>{formatRelativeTime(post.created_utc, now)}</span>
+        <span>{post.score.toLocaleString()} points</span>
+        {media.kind === "link" && media.domain && <span>{media.domain}</span>}
+      </div>
       <Link
         className={styles.comments}
         to={threadPath}

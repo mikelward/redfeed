@@ -93,6 +93,17 @@ describe("PostRow", () => {
     expect(img.src).toBe("https://preview.redd.it/x.jpg?s=a&b=c");
   });
 
+  it("keeps metadata outside the title link so domain/subreddit taps don't navigate", () => {
+    renderRow(makePost());
+    const titleLink = screen
+      .getAllByRole("link")
+      .find((l) => l.textContent?.includes("Look at this cat"))!;
+    // Subreddit, author, age, score, domain are display-only -- not inside the link.
+    expect(titleLink.textContent ?? "").not.toContain("r/pics");
+    expect(titleLink.textContent ?? "").not.toContain("u/alice");
+    expect(titleLink.textContent ?? "").not.toContain("example.com");
+  });
+
   it("exposes exactly two links per row (main + comments) for a link post", () => {
     renderRow(makePost());
     expect(screen.getAllByRole("link")).toHaveLength(2);

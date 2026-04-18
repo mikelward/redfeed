@@ -41,6 +41,14 @@
   font-weight: 600;
 }
 
+.lowScore {
+  opacity: 0.55;
+}
+
+.lowScore .author {
+  font-weight: 500;
+}
+
 .body {
   font-size: 15px;
   line-height: 1.45;
