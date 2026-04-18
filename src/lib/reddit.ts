@@ -84,7 +84,12 @@ export async function fetchThread(
   const params = new URLSearchParams({ sub, id });
   const res = await fetch(`/api/thread?${params.toString()}`, { signal });
   if (!res.ok) {
-    throw buildRequestError("Thread request failed", res, await readErrorBody(res));
+    throw buildRequestError(
+      "Thread request failed",
+      res,
+      await readErrorBody(res),
+      { sub, kind: "thread" },
+    );
   }
   const json = (await res.json()) as [
     Listing<RedditPost>,
@@ -111,12 +116,40 @@ async function readErrorBody(res: Response): Promise<ErrorBody> {
   }
 }
 
-function buildRequestError(prefix: string, res: Response, body: ErrorBody): Error {
+interface ErrorContext {
+  sub?: string;
+  kind: "feed" | "thread";
+}
+
+function buildRequestError(
+  prefix: string,
+  res: Response,
+  body: ErrorBody,
+  ctx: ErrorContext,
+): Error {
   if (body.error === "reddit_credentials_missing") {
     return new Error(
       body.detail ??
         "Reddit API credentials are not configured on the server. " +
           "Waiting on Reddit to approve and issue an API key.",
+    );
+  }
+  const where = ctx.sub ? `r/${ctx.sub}` : ctx.kind;
+  if (res.status === 404) {
+    return new Error(
+      ctx.kind === "feed"
+        ? `Subreddit ${where} doesn't exist.`
+        : `That post in ${where} doesn't exist (it may have been deleted).`,
+    );
+  }
+  if (res.status === 403) {
+    return new Error(
+      `${where} is private, quarantined, or banned, so we can't read it.`,
+    );
+  }
+  if (res.status === 429) {
+    return new Error(
+      "Reddit is rate-limiting us right now. Please try again in a moment.",
     );
   }
   const parts = [body.error, body.detail].filter((s): s is string => !!s);
@@ -134,7 +167,12 @@ export async function fetchFeed(
   if (after) params.set("after", after);
   const res = await fetch(`/api/feed?${params.toString()}`, { signal });
   if (!res.ok) {
-    throw buildRequestError("Feed request failed", res, await readErrorBody(res));
+    throw buildRequestError(
+      "Feed request failed",
+      res,
+      await readErrorBody(res),
+      { sub, kind: "feed" },
+    );
   }
   const json = (await res.json()) as Listing<RedditPost>;
   return {
