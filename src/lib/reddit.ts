@@ -43,6 +43,59 @@ export interface FeedResult {
   after: string | null;
 }
 
+export interface RedditComment {
+  id: string;
+  name: string;
+  author: string;
+  body: string;
+  body_html: string | null;
+  score: number;
+  score_hidden?: boolean;
+  created_utc: number;
+  depth: number;
+  stickied?: boolean;
+  permalink: string;
+  replies: Listing<RedditCommentOrMore> | "" | null;
+}
+
+export interface RedditMore {
+  id: string;
+  name: string;
+  count: number;
+  depth: number;
+  parent_id: string;
+  children: string[];
+}
+
+export type RedditCommentOrMore =
+  | (RedditComment & { __kind?: "t1" })
+  | (RedditMore & { __kind?: "more" });
+
+export interface ThreadResult {
+  post: RedditPost;
+  comments: Array<{ kind: "t1" | "more"; data: RedditCommentOrMore }>;
+}
+
+export async function fetchThread(
+  sub: string,
+  id: string,
+  signal?: AbortSignal,
+): Promise<ThreadResult> {
+  const params = new URLSearchParams({ sub, id });
+  const res = await fetch(`/api/thread?${params.toString()}`, { signal });
+  if (!res.ok) throw new Error(`Thread request failed: ${res.status}`);
+  const json = (await res.json()) as [
+    Listing<RedditPost>,
+    Listing<RedditCommentOrMore>,
+  ];
+  const post = json[0].data.children[0].data;
+  const comments = json[1].data.children.map((c) => ({
+    kind: c.kind as "t1" | "more",
+    data: c.data,
+  }));
+  return { post, comments };
+}
+
 export async function fetchFeed(
   sub: string,
   sort = "hot",
