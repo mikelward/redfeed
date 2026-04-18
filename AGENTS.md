@@ -24,6 +24,7 @@ Instructions for AI coding agents (Claude Code, etc.) working in this repo.
 8. Don't introduce a backend service or database — Reddit's API + serverless proxy + `localStorage` is enough.
 9. Don't implement submitting new posts, moderation, modmail, chat, or reporting.
 10. Always send Reddit a descriptive `User-Agent` on every outbound request (from `REDDIT_USER_AGENT` env var). Reddit will rate-limit or ban requests without one.
+11. **Anonymous `www.reddit.com/*.json` reads fail (403) from Vercel's serverless IPs.** Every outbound Reddit read must go through `api/_redditAuth.ts`'s `redditFetch()`, which attaches an app-only OAuth bearer token (from `REDDIT_CLIENT_ID` + optional `REDDIT_CLIENT_SECRET`) and hits `oauth.reddit.com`. Without `REDDIT_CLIENT_ID`, `redditFetch()` falls back to `www.reddit.com/*.json` — fine for local dev, 403 in production. Don't skip `redditFetch()` by calling `fetch("https://www.reddit.com/...")` directly from a handler.
 
 ## Commands
 

@@ -83,7 +83,12 @@ export async function fetchThread(
 ): Promise<ThreadResult> {
   const params = new URLSearchParams({ sub, id });
   const res = await fetch(`/api/thread?${params.toString()}`, { signal });
-  if (!res.ok) throw new Error(`Thread request failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw new Error(
+      `Thread request failed: ${res.status}${detail ? ` — ${detail}` : ""}`,
+    );
+  }
   const json = (await res.json()) as [
     Listing<RedditPost>,
     Listing<RedditCommentOrMore>,
@@ -96,6 +101,16 @@ export async function fetchThread(
   return { post, comments };
 }
 
+async function readErrorDetail(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string; detail?: string };
+    const parts = [body.error, body.detail].filter((s): s is string => !!s);
+    return parts.join(" — ");
+  } catch {
+    return "";
+  }
+}
+
 export async function fetchFeed(
   sub: string,
   sort = "hot",
@@ -105,7 +120,12 @@ export async function fetchFeed(
   const params = new URLSearchParams({ sub, sort, limit: "25" });
   if (after) params.set("after", after);
   const res = await fetch(`/api/feed?${params.toString()}`, { signal });
-  if (!res.ok) throw new Error(`Feed request failed: ${res.status}`);
+  if (!res.ok) {
+    const detail = await readErrorDetail(res);
+    throw new Error(
+      `Feed request failed: ${res.status}${detail ? ` — ${detail}` : ""}`,
+    );
+  }
   const json = (await res.json()) as Listing<RedditPost>;
   return {
     posts: json.data.children.filter((c) => c.kind === "t3").map((c) => c.data),

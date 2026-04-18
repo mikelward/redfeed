@@ -352,17 +352,17 @@ All preview URLs come back HTML-entity-encoded (`&amp;` instead of `&`); we deco
 
 - Vercel project connected to the repo. `main` → production, all branches → preview.
 - Environment variables:
-  - `REDDIT_CLIENT_ID`
-  - `REDDIT_CLIENT_SECRET`
-  - `REDDIT_REDIRECT_URI`
-  - `REDDIT_USER_AGENT` (e.g. `web:app.redfeed:v0.1.0 (by /u/<owner>)`)
-  - `COOKIE_SIGNING_KEY` — HMAC key for the OAuth state cookie
-  - `SESSION_COOKIE_PREFIX=rf_` (optional override)
+  - `REDDIT_CLIENT_ID` — **required in production**. Without it, `/api/feed` and `/api/thread` fall back to unauthenticated `www.reddit.com/*.json` reads, which Reddit blocks from most cloud-provider IP ranges (403). When set, we use app-only OAuth (`installed_client` if no secret, `client_credentials` if a secret is present) against `oauth.reddit.com` where the requests succeed.
+  - `REDDIT_CLIENT_SECRET` — optional. Set it for "web" Reddit apps (`client_credentials` grant); leave empty for "installed" apps (`installed_client` grant).
+  - `REDDIT_REDIRECT_URI` — for the user OAuth flow (stretch feature).
+  - `REDDIT_USER_AGENT` (e.g. `web:app.redfeed:v0.1.0 (by /u/<your-reddit-username>)`) — Reddit rate-limits or blocks requests without a descriptive User-Agent in this format.
+  - `COOKIE_SIGNING_KEY` — HMAC key for the OAuth state cookie (stretch feature).
+  - `SESSION_COOKIE_PREFIX=rf_` (optional override).
 
 ## Open Questions
 
-- **CORS for anonymous reads.** Reddit's public JSON endpoints have historically allowed cross-origin reads, but this is not contractual. If we hit CORS failures we route all reads through `/api/feed`. *Tentative decision: proxy everything through `/api/feed` from day one for consistency and caching.*
-- **Rate limiting.** Reddit's OAuth API limits to 100 QPM per OAuth client. Anonymous `.json` endpoints have looser but unpublished limits. We add a small in-memory LRU on the serverless side so rapid-fire feed reloads don't burn the budget.
+- **Reddit blocks cloud-provider IPs from anonymous JSON.** Reddit serves `www.reddit.com/*.json` directly to browsers but returns 403 for most serverless/hosted IP ranges. Because Vercel's serverless functions sit behind one of those blocked ranges, our `/api/feed` and `/api/thread` proxies must authenticate. We do **app-only OAuth** (no user account required) via the `installed_client` or `client_credentials` grant and then hit `oauth.reddit.com`. The access token is cached in-memory per serverless instance. The `REDDIT_CLIENT_ID` env var is therefore effectively required in production.
+- **Rate limiting.** Reddit's OAuth API limits to 100 QPM per OAuth client. We add a small in-memory LRU on the serverless side so rapid-fire feed reloads don't burn the budget.
 - **NSFW handling.** MVP blurs NSFW thumbnails and requires a tap to reveal; we do not gate the app behind an age check. Fully NSFW-only subs remain visible to logged-in 18+ users via Reddit's own flag.
 - **Quarantined subs.** Reddit requires an explicit opt-in before serving content from quarantined subs; we'll surface Reddit's own message and not attempt to bypass it.
 - **Dismiss sync.** Do we sync the local dismissed list up to Reddit's server-side `/api/hide` for logged-in users? *Decision: opt-in in Settings, stretch feature.*
