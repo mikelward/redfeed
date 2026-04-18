@@ -48,6 +48,22 @@ export default function AboutPage() {
               so returning readers see only what&apos;s new. An Undo toast
               covers accidental dismissals.
             </li>
+            <li>
+              <strong>Bigger expand/collapse buttons for comment threads.</strong>{" "}
+              Each comment&apos;s expand/collapse control is a full-width row
+              with a ≥40px hit area. On Reddit&apos;s own mobile web, tapping
+              a child comment to expand it often collapses the parent
+              instead (see{" "}
+              <a
+                href="https://www.reddit.com/r/bugs/comments/1jzi0g8/mobile_web_expand_comments_sometimes_collapses/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                r/bugs
+              </a>
+              ). Redfeed avoids that failure mode by giving each comment its
+              own dedicated collapse button.
+            </li>
           </ul>
 
           <h2>How it uses the Reddit API</h2>
