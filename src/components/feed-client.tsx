@@ -8,6 +8,7 @@ import { PostCard } from "@/components/post-card";
 type FeedClientProps = {
   initialPosts: FeedPost[];
   initialAfter: string | null;
+  initialErrorMessage?: string | null;
 };
 
 const HIDDEN_POSTS_STORAGE_KEY = "redfeed.hiddenPosts";
@@ -43,11 +44,11 @@ function persistStringArray(storageKey: string, values: string[]): void {
   localStorage.setItem(storageKey, JSON.stringify(values));
 }
 
-export function FeedClient({ initialPosts, initialAfter }: FeedClientProps) {
+export function FeedClient({ initialPosts, initialAfter, initialErrorMessage = null }: FeedClientProps) {
   const [posts, setPosts] = useState(initialPosts);
   const [after, setAfter] = useState<string | null>(initialAfter);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(initialErrorMessage);
   const [hiddenPostIds, setHiddenPostIds] = useState<string[]>(() => loadStringArray(HIDDEN_POSTS_STORAGE_KEY));
   const [ignoredSubreddits, setIgnoredSubreddits] = useState<string[]>(() => loadStringArray(IGNORED_SUBREDDITS_STORAGE_KEY));
   const sentinelRef = useRef<HTMLDivElement | null>(null);
