@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { checkRedditCredentials, getUserToken, redditFetch } from "./_redditAuth";
+import { checkRedditCredentials, getUserToken, redditFetch } from "./_redditAuth.js";
 
 const VALID_SORTS = new Set(["hot", "new", "top", "rising", "controversial"]);
 const VALID_T = new Set(["hour", "day", "week", "month", "year", "all"]);

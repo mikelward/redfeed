@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "node:crypto";
-import { signedCookieValue, stateCookie } from "../_cookies";
+import { signedCookieValue, stateCookie } from "../_cookies.js";
 
 const SCOPES = ["identity", "read", "vote", "submit", "save", "history"].join(" ");
 
