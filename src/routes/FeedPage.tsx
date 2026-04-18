@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { fetchFeed, type RedditPost } from "../lib/reddit";
 import PostRow from "../components/PostRow";
@@ -16,14 +16,23 @@ interface UndoState {
 export default function FeedPage() {
   const { sub = "popular", sort = "hot" } = useParams();
   const [posts, setPosts] = useState<RedditPost[]>([]);
+  const [after, setAfter] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [undo, setUndo] = useState<UndoState | null>(null);
 
   const dismissedStore = useDismissedStories();
   const headerRef = useRef<HTMLElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [topOffset, setTopOffset] = useState(0);
+
+  const afterRef = useRef<string | null>(null);
+  afterRef.current = after;
+  const loadingMoreRef = useRef(false);
+  loadingMoreRef.current = loadingMore;
 
   useEffect(() => {
     if (!headerRef.current) return;
@@ -55,9 +64,15 @@ export default function FeedPage() {
     const ctrl = new AbortController();
     setLoading(true);
     setError(null);
+    setMoreError(null);
     setUndo(null);
+    setPosts([]);
+    setAfter(null);
     fetchFeed(sub, sort, null, ctrl.signal)
-      .then((r) => setPosts(r.posts))
+      .then((r) => {
+        setPosts(r.posts);
+        setAfter(r.after);
+      })
       .catch((e: unknown) => {
         if (ctrl.signal.aborted) return;
         setError(e instanceof Error ? e.message : "Failed to load feed");
@@ -67,6 +82,41 @@ export default function FeedPage() {
       });
     return () => ctrl.abort();
   }, [sub, sort, attempt]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current) return;
+    const cursor = afterRef.current;
+    if (!cursor) return;
+    setLoadingMore(true);
+    setMoreError(null);
+    try {
+      const r = await fetchFeed(sub, sort, cursor);
+      setPosts((prev) => {
+        const seen = new Set(prev.map((p) => p.name));
+        return [...prev, ...r.posts.filter((p) => !seen.has(p.name))];
+      });
+      setAfter(r.after);
+    } catch (e) {
+      setMoreError(e instanceof Error ? e.message : "Failed to load more");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [sub, sort]);
+
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    if (typeof IntersectionObserver === "undefined") return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          void loadMore();
+        }
+      },
+      { rootMargin: "400px 0px" },
+    );
+    obs.observe(sentinelRef.current);
+    return () => obs.disconnect();
+  }, [loadMore]);
 
   useEffect(() => {
     if (!undo) return;
@@ -83,6 +133,8 @@ export default function FeedPage() {
     () => posts.filter((p) => !dismissedStore.isDismissed(p.name)),
     [posts, dismissedStore],
   );
+
+  const hasMore = after !== null;
 
   return (
     <>
@@ -110,7 +162,7 @@ export default function FeedPage() {
         )}
         {!loading && !error && visiblePosts.length === 0 && posts.length > 0 && (
           <div className="rf-loading">
-            All posts dismissed. Scroll down or tap Restore all.
+            All posts dismissed. Tap Restore all to bring them back.
           </div>
         )}
         {!loading && !error && posts.length === 0 && (
@@ -123,6 +175,25 @@ export default function FeedPage() {
             rowRef={(el) => attachRef(post.name, el)}
           />
         ))}
+        {!loading && !error && hasMore && (
+          <div ref={sentinelRef} className="rf-load-more">
+            {loadingMore ? (
+              <span>Loading more…</span>
+            ) : moreError ? (
+              <>
+                <span>{moreError}</span>
+                <button onClick={() => void loadMore()}>Retry</button>
+              </>
+            ) : (
+              <button onClick={() => void loadMore()} aria-label="load more posts">
+                Load more
+              </button>
+            )}
+          </div>
+        )}
+        {!loading && !error && !hasMore && posts.length > 0 && (
+          <div className="rf-loading">End of feed.</div>
+        )}
       </main>
       {undo && (
         <div className="rf-toast" role="status" aria-live="polite">
