@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { fetchFeed, type RedditPost } from "../lib/reddit";
 import PostRow from "../components/PostRow";
 import { useDismissedStories } from "../lib/useDismissedStories";
@@ -143,7 +143,9 @@ export default function FeedPage() {
     <>
       <header ref={headerRef} className="rf-header">
         <HamburgerButton onClick={() => setNavOpen(true)} />
-        <span className="rf-brand">Redfeed</span>
+        <Link className="rf-brand" to="/r/popular" aria-label="Redfeed home">
+          Redfeed
+        </Link>
         <span className="rf-feed-name">
           r/{sub} · {sort}
         </span>

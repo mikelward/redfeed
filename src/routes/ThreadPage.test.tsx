@@ -90,6 +90,23 @@ describe("ThreadPage", () => {
     expect(screen.getByText("first comment")).toBeInTheDocument();
   });
 
+  it("brand in the header links to home", async () => {
+    render(
+      <MemoryRouter initialEntries={["/r/pics/comments/abc"]}>
+        <Routes>
+          <Route path="/r/:sub/comments/:id" element={<ThreadPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Hello thread" })).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("link", { name: "Redfeed home" })).toHaveAttribute(
+      "href",
+      "/r/popular",
+    );
+  });
+
   it("shows an inline retry on fetch error", async () => {
     vi.stubGlobal(
       "fetch",

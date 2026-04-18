@@ -142,6 +142,15 @@ describe("FeedPage", () => {
     expect(screen.getByText("End of feed.")).toBeInTheDocument();
     expect(screen.queryByLabelText("load more posts")).not.toBeInTheDocument();
   });
+
+  it("brand in the header links to home", async () => {
+    renderFeed();
+    await waitFor(() => screen.getByText("Post A"));
+    expect(screen.getByRole("link", { name: "Redfeed home" })).toHaveAttribute(
+      "href",
+      "/r/popular",
+    );
+  });
 });
 
 describe("FeedPage pagination", () => {

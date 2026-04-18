@@ -76,6 +76,19 @@ header.rf-header .rf-brand {
   color: var(--rf-accent);
   font-size: 18px;
   letter-spacing: -0.01em;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 4px;
+  border-radius: 6px;
+}
+
+header.rf-header a.rf-brand:active,
+header.rf-header a.rf-brand:focus-visible {
+  background: var(--rf-bg-alt);
+  outline: 2px solid var(--rf-accent);
+  outline-offset: -2px;
 }
 
 header.rf-header .rf-feed-name {
@@ -85,10 +98,8 @@ header.rf-header .rf-feed-name {
 
 .rf-hamburger {
   display: inline-flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 4px;
   width: 48px;
   height: 48px;
   padding: 0;
@@ -99,12 +110,8 @@ header.rf-header .rf-feed-name {
   color: var(--rf-text);
 }
 
-.rf-hamburger > span {
+.rf-hamburger-icon {
   display: block;
-  width: 22px;
-  height: 2px;
-  background: currentColor;
-  border-radius: 2px;
 }
 
 .rf-hamburger:active,
