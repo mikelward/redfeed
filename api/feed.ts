@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { redditFetch } from "./_redditAuth";
+import { getUserToken, redditFetch } from "./_redditAuth";
 
 const VALID_SORTS = new Set(["hot", "new", "top", "rising", "controversial"]);
 const VALID_T = new Set(["hour", "day", "week", "month", "year", "all"]);
@@ -32,9 +32,11 @@ export default async function handler(
   }
 
   try {
+    const userToken = await getUserToken(req, res);
     const upstream = await redditFetch({
       path: `/r/${sub}/${sort}`,
       query: { limit: String(limit), after, t },
+      userToken,
     });
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => "");
@@ -47,10 +49,10 @@ export default async function handler(
     }
     const body = await upstream.text();
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader(
-      "Cache-Control",
-      "public, max-age=30, s-maxage=60, stale-while-revalidate=120",
-    );
+    const cacheControl = userToken
+      ? "private, no-store"
+      : "public, max-age=30, s-maxage=60, stale-while-revalidate=120";
+    res.setHeader("Cache-Control", cacheControl);
     res.status(200).send(body);
   } catch (err) {
     console.error("feed handler threw", err);

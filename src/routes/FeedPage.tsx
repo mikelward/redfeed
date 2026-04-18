@@ -4,6 +4,8 @@ import { fetchFeed, type RedditPost } from "../lib/reddit";
 import PostRow from "../components/PostRow";
 import { useDismissedStories } from "../lib/useDismissedStories";
 import { useAutoDismissOnScroll } from "../lib/useAutoDismissOnScroll";
+import { useMe } from "../lib/useMe";
+import AuthMenu from "../components/AuthMenu";
 
 const UNDO_WINDOW_MS = 6000;
 
@@ -25,6 +27,7 @@ export default function FeedPage() {
   const [undo, setUndo] = useState<UndoState | null>(null);
 
   const dismissedStore = useDismissedStories();
+  const meState = useMe();
   const headerRef = useRef<HTMLElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [topOffset, setTopOffset] = useState(0);
@@ -150,6 +153,7 @@ export default function FeedPage() {
           >
             Restore all
           </button>
+          <AuthMenu state={meState} />
         </div>
       </header>
       <main>

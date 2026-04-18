@@ -188,3 +188,34 @@ header.rf-header .rf-feed-name {
   outline: 2px solid var(--rf-accent);
   outline-offset: -2px;
 }
+
+.rf-auth-link,
+.rf-auth-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rf-auth-link {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--rf-accent);
+  color: var(--rf-accent);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rf-auth-link:active,
+.rf-auth-link:focus-visible {
+  background: rgba(255, 69, 0, 0.1);
+  outline: 2px solid var(--rf-accent);
+  outline-offset: -2px;
+}
+
+.rf-auth-name {
+  font-size: 13px;
+  color: var(--rf-meta);
+  white-space: nowrap;
+}

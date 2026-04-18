@@ -1,10 +1,42 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import {
   _clearTokenCacheForTests,
+  exchangeCode,
   getAppOnlyToken,
+  getUserToken,
   redditFetch,
+  refreshUserToken,
+  revokeToken,
   userAgent,
 } from "./_redditAuth";
+
+interface FakeRes {
+  _headers: Record<string, string | string[]>;
+  setHeader(name: string, value: string | number | readonly string[]): FakeRes;
+  status(): FakeRes;
+  json(): FakeRes;
+  end(): FakeRes;
+}
+
+function makeRes(): FakeRes {
+  const res: FakeRes = {
+    _headers: {},
+    setHeader(name, value) {
+      this._headers[name] = Array.isArray(value) ? (value as string[]) : String(value);
+      return this;
+    },
+    status() { return this; },
+    json() { return this; },
+    end() { return this; },
+  };
+  return res;
+}
+
+const asRes = (r: FakeRes): VercelResponse => r as unknown as VercelResponse;
+
+const makeReq = (cookie?: string): VercelRequest =>
+  ({ headers: cookie ? { cookie } : {}, query: {} }) as unknown as VercelRequest;
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -157,5 +189,130 @@ describe("redditFetch", () => {
     expect(
       (dataCall[1].headers as Record<string, string>).Authorization,
     ).toBe("Bearer tok");
+  });
+});
+
+describe("getUserToken", () => {
+  beforeEach(() => {
+    _clearTokenCacheForTests();
+    process.env = { ...ORIGINAL_ENV };
+    process.env.REDDIT_CLIENT_ID = "cid";
+    process.env.REDDIT_CLIENT_SECRET = "sec";
+  });
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    vi.unstubAllGlobals();
+  });
+
+  it("returns the access cookie verbatim when present", async () => {
+    const tok = await getUserToken(makeReq("rf_access=at"), asRes(makeRes()));
+    expect(tok).toBe("at");
+  });
+
+  it("returns null when no cookies present", async () => {
+    expect(await getUserToken(makeReq(), asRes(makeRes()))).toBe(null);
+  });
+
+  it("refreshes when only refresh cookie present and rewrites cookies on response", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        access_token: "new-at",
+        refresh_token: "new-rt",
+        expires_in: 3600,
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = makeRes();
+    const tok = await getUserToken(makeReq("rf_refresh=rt"), asRes(res));
+    expect(tok).toBe("new-at");
+    const cookies = res._headers["Set-Cookie"] as string[];
+    expect(cookies.some((c) => c.startsWith("rf_access=new-at"))).toBe(true);
+    expect(cookies.some((c) => c.startsWith("rf_refresh=new-rt"))).toBe(true);
+  });
+
+  it("returns null when refresh fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 400, json: async () => ({}) })),
+    );
+    const tok = await getUserToken(makeReq("rf_refresh=rt"), asRes(makeRes()));
+    expect(tok).toBe(null);
+  });
+});
+
+describe("redditFetch with explicit userToken", () => {
+  beforeEach(() => {
+    _clearTokenCacheForTests();
+    process.env = { ...ORIGINAL_ENV };
+    process.env.REDDIT_CLIENT_ID = "cid";
+  });
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the user token over app-only and hits oauth.reddit.com", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    await redditFetch({
+      path: "/r/popular/hot",
+      userToken: "user-at",
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+    const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
+    expect(calls[0][0]).toContain("oauth.reddit.com/r/popular/hot");
+    expect((calls[0][1].headers as Record<string, string>).Authorization).toBe(
+      "Bearer user-at",
+    );
+  });
+});
+
+describe("OAuth helper fetches", () => {
+  beforeEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    process.env.REDDIT_CLIENT_ID = "cid";
+    process.env.REDDIT_CLIENT_SECRET = "sec";
+  });
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    vi.unstubAllGlobals();
+  });
+
+  it("exchangeCode posts grant_type=authorization_code with Basic auth", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: "at", expires_in: 3600 }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await exchangeCode("code123", "https://x/cb");
+    const [, opts] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(opts.body)).toContain("grant_type=authorization_code");
+    expect(String(opts.body)).toContain("code=code123");
+    expect((opts.headers as Record<string, string>).Authorization).toMatch(/^Basic /);
+  });
+
+  it("refreshUserToken posts grant_type=refresh_token", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: "at", expires_in: 3600 }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await refreshUserToken("rt");
+    const [, opts] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(opts.body)).toContain("grant_type=refresh_token");
+    expect(String(opts.body)).toContain("refresh_token=rt");
+  });
+
+  it("revokeToken posts to revoke_token", async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await revokeToken("at", "access_token");
+    const [url, opts] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("revoke_token");
+    expect(String(opts.body)).toContain("token=at");
+    expect(String(opts.body)).toContain("token_type_hint=access_token");
   });
 });
