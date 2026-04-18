@@ -6,11 +6,11 @@ import styles from "./PostRow.module.css";
 
 interface Props {
   post: RedditPost;
-  seen?: boolean;
   now?: Date;
+  rowRef?: (el: HTMLElement | null) => void;
 }
 
-export default function PostRow({ post, seen = false, now }: Props) {
+export default function PostRow({ post, now, rowRef }: Props) {
   const media = mediaForPost(post);
   const threadPath = post.permalink;
   const isExternalLink = media.kind === "link" && !!post.url;
@@ -56,7 +56,11 @@ export default function PostRow({ post, seen = false, now }: Props) {
   );
 
   return (
-    <article className={`${styles.row} ${seen ? styles.seen : ""}`}>
+    <article
+      ref={rowRef}
+      data-fullname={post.name}
+      className={styles.row}
+    >
       {mainIsExternal ? (
         <a
           className={styles.main}

@@ -8,7 +8,7 @@ Instructions for AI coding agents (Claude Code, etc.) working in this repo.
 - Stack: **React + TypeScript + Vite**, deployed on **Vercel**.
 - Stretch goals (login, voting, commenting) use **Vercel serverless functions** under `/api`.
 - Read data comes from Reddit's public JSON endpoints (anonymous) or `oauth.reddit.com` (logged in). Write actions go through the real Reddit OAuth API — we do **not** scrape HTML.
-- The defining UX idea beyond "fewer tap targets" is **RSS-style seen tracking**: posts scrolled past the viewport are dimmed on return.
+- The defining UX idea beyond "fewer tap targets" is **RSS-style auto-dismiss**: a post that has been intersecting the viewport and then scrolls completely off the top is dismissed and hard-filtered out of the feed. An Undo toast covers accidental dismissals. No dim mode, no separator, no collapsed run — dismissed is dismissed.
 - See `SPEC.md` for the product spec.
 - Never call the app "Reddit" or use Reddit's logo/alien as the app icon. "Reddit" may be referenced in copy as the source (e.g. "a reader for Reddit").
 
@@ -19,7 +19,7 @@ Instructions for AI coding agents (Claude Code, etc.) working in this repo.
 3. Prefer editing existing files to creating new ones. Don't create docs/README files unless asked.
 4. Keep the UI mobile-first. Accent color is Reddit orange (`#ff4500`), background is neutral (`#ffffff` / `#f7f7f8`), not Reddit's own chrome.
 5. **Fewer, larger tap targets.** A post row has at most three tap zones — upvote (logged-in only), main content (title *or* image), and the "N comments" button — in that left-to-right order. No inline text links in metadata rows, no save/share/hide/"…" buttons on rows. Min 48×48px per target, ≥8px between adjacent targets (≥12px between main content and the comments button). See *Post row layout* in `SPEC.md`; if a change would add another tappable element to a row, push back or flag it.
-6. **Seen tracking is client-side only in MVP.** Don't call Reddit's `/api/hide` endpoint as part of the scroll-past behavior — that's a stretch, opt-in feature. MVP writes to `localStorage`.
+6. **Auto-dismiss is client-side only in MVP.** Don't call Reddit's `/api/hide` endpoint as part of the scroll-past behavior — that's a stretch, opt-in feature. MVP writes to `localStorage` under key `rf.dismissed.v1`. The trigger is: row was intersecting, now `isIntersecting === false` AND `boundingClientRect.bottom <= headerOffset`. Scrolling off the bottom must **not** dismiss. Don't reintroduce a dim/hide toggle — dismissed rows are filtered out entirely, matching mikelward/newshacker's behavior.
 7. **Never expose OAuth tokens to the client.** Tokens live in HTTP-only cookies on our origin; only `/api/*` handlers read them.
 8. Don't introduce a backend service or database — Reddit's API + serverless proxy + `localStorage` is enough.
 9. Don't implement submitting new posts, moderation, modmail, chat, or reporting.
@@ -44,7 +44,7 @@ If a command above doesn't exist yet (early in the project), add it to `package.
 - **Framework:** Vitest + React Testing Library + jsdom.
 - **Network mocking:** MSW for anything that hits `reddit.com`, `oauth.reddit.com`, or Reddit's media CDNs.
 - **Serverless tests:** call the handler directly with a mocked `Request`/`Response`; mock `fetch` for outbound Reddit calls. Must cover OAuth code-exchange, refresh, vote, and comment paths.
-- **Seen-store tests:** simulate scroll, verify `localStorage` keys, verify TTL pruning, verify dim-vs-hide rendering.
+- **Dismissed-store tests:** verify `shouldDismiss()` returns true only when `!isIntersecting && wasSeen && rect.bottom <= threshold`; verify `localStorage` keys; verify 7-day TTL pruning; verify Undo restores the row.
 - **Coverage floor:** 80% for files in `src/lib/` and `api/`.
 - **Required runs before marking a task done:**
   1. `npm test`
@@ -69,7 +69,7 @@ If any of the above fails, fix it — don't disable the check.
 - **Read path (logged-in):** client → `/api/feed` → `https://oauth.reddit.com/...` with the user's token.
 - **Write path (vote/comment/save):** client → `/api/vote` | `/api/comment` | `/api/save` → `https://oauth.reddit.com/api/...`. The user's OAuth token is stored in our own HTTP-only cookie and attached server-side.
 - **OAuth:** standard `code` flow. Refresh token in `rf_refresh` cookie; access token in `rf_access` cookie; both HTTP-only, Secure, SameSite=Lax. Refresh happens lazily on any write handler when the access token is missing or within 60s of expiry.
-- **Seen store:** `localStorage` key `rf.seen.v1`; values are `{ [fullname]: timestamp }`. 30-day TTL. Exposed via a `useSeenStore()` hook. Never writes to the network in MVP.
+- **Dismissed store:** `localStorage` key `rf.dismissed.v1`; values are `{ [fullname]: timestamp }`. 7-day TTL. Exposed via a `useDismissedStories()` hook; the IntersectionObserver lives in `useAutoDismissOnScroll()`. Never writes to the network in MVP.
 - **Media normalizer (`src/lib/media.ts`):** the one place that turns a Reddit post into a renderable `{ kind, src, srcset, width, height, badge? }` shape. All image rendering flows through it. See *Image handling details* in `SPEC.md` for the priority order.
 
 ## Safe vs. risky actions

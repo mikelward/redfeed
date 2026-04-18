@@ -28,10 +28,10 @@ function makePost(overrides: Partial<RedditPost> = {}): RedditPost {
   };
 }
 
-function renderRow(post: RedditPost, seen = false) {
+function renderRow(post: RedditPost) {
   return render(
     <MemoryRouter>
-      <PostRow post={post} seen={seen} />
+      <PostRow post={post} />
     </MemoryRouter>,
   );
 }
@@ -91,12 +91,6 @@ describe("PostRow", () => {
     );
     const img = screen.getByAltText("Look at this cat") as HTMLImageElement;
     expect(img.src).toBe("https://preview.redd.it/x.jpg?s=a&b=c");
-  });
-
-  it("applies the seen class when seen=true", () => {
-    const { container } = renderRow(makePost(), true);
-    const article = container.querySelector("article");
-    expect(article?.className).toMatch(/seen/);
   });
 
   it("exposes exactly two links per row (main + comments) for a link post", () => {
