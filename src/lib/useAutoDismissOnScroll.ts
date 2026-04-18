@@ -66,6 +66,13 @@ export function useAutoDismissOnScroll(
     if (prevEl && prevEl !== el) {
       obs?.unobserve(prevEl);
       elements.current.delete(prevEl);
+      // The id is being rebound to a new DOM node. Forget that the old
+      // node was ever seen, so the new node has to be intersecting on
+      // its own merits before it can be auto-dismissed. Without this,
+      // a row remounted in a new position (StrictMode double-invoke,
+      // list reorder, page transition) would inherit the prior seen
+      // flag and could fire dismiss without ever appearing on screen.
+      seenSet.current.delete(name);
     }
     if (el && !elements.current.has(el)) {
       elements.current.set(el, name);
