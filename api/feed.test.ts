@@ -107,17 +107,32 @@ describe("api/feed", () => {
     expect(res._status).toBe(502);
   });
 
-  it("returns 503 reddit_credentials_missing when upstream fails and no CLIENT_ID is set", async () => {
+  it("returns 503 reddit_credentials_missing upfront on Vercel when CLIENT_ID is unset", async () => {
     delete process.env.REDDIT_CLIENT_ID;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: false, status: 403, text: async () => "" })),
-    );
+    process.env.VERCEL = "1";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     const res = makeRes();
     await handler(makeReq({ sub: "popular" }), res);
     expect(res._status).toBe(503);
     expect(res._body).toMatchObject({ error: "reddit_credentials_missing" });
     expect((res._body as { detail: string }).detail).toMatch(/Reddit/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to anonymous reads in local dev when CLIENT_ID is unset", async () => {
+    delete process.env.REDDIT_CLIENT_ID;
+    delete process.env.VERCEL;
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => '{"kind":"Listing","data":{"children":[]}}',
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = makeRes();
+    await handler(makeReq({ sub: "popular" }), res);
+    expect(res._status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("does not flag credentials_missing when CLIENT_ID is set", async () => {
