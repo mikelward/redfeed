@@ -37,9 +37,12 @@ function makeReq(query: Record<string, string>): VercelRequest {
   return { query } as unknown as VercelRequest;
 }
 
+const ORIGINAL_ENV = { ...process.env };
+
 describe("api/feed", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    process.env = { ...ORIGINAL_ENV };
   });
 
   it("rejects invalid sub", async () => {
@@ -75,10 +78,18 @@ describe("api/feed", () => {
   });
 
   it("forwards upstream non-ok status", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: false, status: 403, text: async () => "" })),
-    );
+    process.env.REDDIT_CLIENT_ID = "cid";
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/api/v1/access_token")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ access_token: "tok", expires_in: 3600 }),
+        };
+      }
+      return { ok: false, status: 403, text: async () => "" };
+    });
+    vi.stubGlobal("fetch", fetchMock);
     const res = makeRes();
     await handler(makeReq({ sub: "popular" }), res);
     expect(res._status).toBe(403);
@@ -94,5 +105,37 @@ describe("api/feed", () => {
     const res = makeRes();
     await handler(makeReq({ sub: "popular" }), res);
     expect(res._status).toBe(502);
+  });
+
+  it("returns 503 reddit_credentials_missing when upstream fails and no CLIENT_ID is set", async () => {
+    delete process.env.REDDIT_CLIENT_ID;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 403, text: async () => "" })),
+    );
+    const res = makeRes();
+    await handler(makeReq({ sub: "popular" }), res);
+    expect(res._status).toBe(503);
+    expect(res._body).toMatchObject({ error: "reddit_credentials_missing" });
+    expect((res._body as { detail: string }).detail).toMatch(/Reddit/i);
+  });
+
+  it("does not flag credentials_missing when CLIENT_ID is set", async () => {
+    process.env.REDDIT_CLIENT_ID = "cid";
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/api/v1/access_token")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ access_token: "tok", expires_in: 3600 }),
+        };
+      }
+      return { ok: false, status: 403, text: async () => "" };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const res = makeRes();
+    await handler(makeReq({ sub: "popular" }), res);
+    expect(res._status).toBe(403);
+    expect((res._body as { error: string }).error).toBe("reddit 403");
   });
 });

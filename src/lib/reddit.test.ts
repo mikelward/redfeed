@@ -54,6 +54,24 @@ describe("fetchFeed", () => {
     );
     await expect(fetchFeed("popular")).rejects.toThrow(/500/);
   });
+
+  it("surfaces a friendly message when the server reports missing reddit credentials", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 503,
+        json: async () => ({
+          error: "reddit_credentials_missing",
+          detail: "Reddit API credentials are not configured on the server.",
+        }),
+      })),
+    );
+    await expect(fetchFeed("popular")).rejects.toThrow(
+      /Reddit API credentials are not configured/,
+    );
+    await expect(fetchFeed("popular")).rejects.not.toThrow(/503/);
+  });
 });
 
 describe("fetchThread", () => {

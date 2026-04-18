@@ -84,10 +84,7 @@ export async function fetchThread(
   const params = new URLSearchParams({ sub, id });
   const res = await fetch(`/api/thread?${params.toString()}`, { signal });
   if (!res.ok) {
-    const detail = await readErrorDetail(res);
-    throw new Error(
-      `Thread request failed: ${res.status}${detail ? ` — ${detail}` : ""}`,
-    );
+    throw buildRequestError("Thread request failed", res, await readErrorBody(res));
   }
   const json = (await res.json()) as [
     Listing<RedditPost>,
@@ -101,14 +98,30 @@ export async function fetchThread(
   return { post, comments };
 }
 
-async function readErrorDetail(res: Response): Promise<string> {
+interface ErrorBody {
+  error?: string;
+  detail?: string;
+}
+
+async function readErrorBody(res: Response): Promise<ErrorBody> {
   try {
-    const body = (await res.json()) as { error?: string; detail?: string };
-    const parts = [body.error, body.detail].filter((s): s is string => !!s);
-    return parts.join(" — ");
+    return (await res.json()) as ErrorBody;
   } catch {
-    return "";
+    return {};
   }
+}
+
+function buildRequestError(prefix: string, res: Response, body: ErrorBody): Error {
+  if (body.error === "reddit_credentials_missing") {
+    return new Error(
+      body.detail ??
+        "Reddit API credentials are not configured on the server. " +
+          "Waiting on Reddit to approve and issue an API key.",
+    );
+  }
+  const parts = [body.error, body.detail].filter((s): s is string => !!s);
+  const suffix = parts.length ? ` — ${parts.join(" — ")}` : "";
+  return new Error(`${prefix}: ${res.status}${suffix}`);
 }
 
 export async function fetchFeed(
@@ -121,10 +134,7 @@ export async function fetchFeed(
   if (after) params.set("after", after);
   const res = await fetch(`/api/feed?${params.toString()}`, { signal });
   if (!res.ok) {
-    const detail = await readErrorDetail(res);
-    throw new Error(
-      `Feed request failed: ${res.status}${detail ? ` — ${detail}` : ""}`,
-    );
+    throw buildRequestError("Feed request failed", res, await readErrorBody(res));
   }
   const json = (await res.json()) as Listing<RedditPost>;
   return {

@@ -38,6 +38,15 @@ export default async function handler(
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => "");
       console.error("upstream not ok", upstream.status, detail.slice(0, 500));
+      if (!process.env.REDDIT_CLIENT_ID && !userToken) {
+        res.status(503).json({
+          error: "reddit_credentials_missing",
+          detail:
+            "Reddit API credentials are not configured on the server. " +
+            "Waiting on Reddit to approve and issue an API key.",
+        });
+        return;
+      }
       res.status(upstream.status).json({
         error: `reddit ${upstream.status}`,
         detail: detail.slice(0, 500),
